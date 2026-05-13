@@ -18,3 +18,7 @@ I added the file with my design for the steppers and phone frame. Please double-
 
 
 I am having an issue with the upper stepper motor not bringing the phone back up after it looks too far down. The biggest cause of the problem is the stepper's current draw being too low due to the driver type.
+
+
+
+All credit to Claude for basically writing all of the code, and https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet for the model that is being used to track to do the tracking of the face
