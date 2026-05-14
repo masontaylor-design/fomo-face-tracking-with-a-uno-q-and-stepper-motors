@@ -11,7 +11,7 @@ An Arduino Uno Q
 
 <img width="1472" height="1640" alt="image" src="https://github.com/user-attachments/assets/c657d3f8-92a9-4a90-9b54-cb3ca49cc21f" />
 
-The first thing that you need to do is to wire the stepper motors, make sure the long leg of the capacitor is on the VMOT, and follow the directions in the picture above. connect sleep reset to 3v3 and ms1, ms2, ms3 to 3v3 for 1/16th step for 1/8 gnd 3v3 gnd for 1/4 its 3v3 gnd gnd and for 1 step its gnd gnd gnd. For the stepper wires, I had b1 black, a1 green, b2 blue, and a2 red, but this seems to vary across different steppers, so ideally, you would check with a multimeter to see which wires correspond to which coils. 
+The first thing you need to do is wire the stepper motors, make sure the long leg of the capacitor is on VMOT, and follow the directions in the picture above. connect sleep reset to 3v3 and ms1, ms2, ms3 to 3v3 for 1/16th step for 1/8 gnd 3v3 gnd for 1/4 its 3v3 gnd gnd and for 1 step its gnd gnd gnd( i used 1/16 and other step numbers wont work with the code). For the stepper wires, I had b1 black, a1 green, b2 blue, and a2 red, but this seems to vary across different steppers, so ideally, you would check with a multimeter to see which wires correspond to which coils. 
 The code is made for arduino app lab, so that is what you should probably use 
 to use the face stream. You will need to follow the instructions in the Python output. You will need to use Safari for everything. (You need to download something to get the cam to work.)
 I added the file with my design for the steppers and phone frame. Please double-check the dimensions before printing. 
