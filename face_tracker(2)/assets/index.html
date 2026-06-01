@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Face Tracker (Phone Cam)</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0a0a0a;color:#e0e0e0;font-family:'Courier New',monospace;
+         display:flex;flex-direction:column;align-items:center;min-height:100dvh;padding:20px 12px}
+    h1{font-size:1rem;letter-spacing:.3em;text-transform:uppercase;
+       color:#00ff88;opacity:.7;margin-bottom:18px}
+
+    /* Camera feed */
+    #cam-wrap{position:relative;width:100%;max-width:640px;aspect-ratio:4/3;
+              border:2px solid #00ff8830;border-radius:6px;overflow:hidden;background:#111;margin-bottom:16px}
+    #cam-wrap iframe{width:100%;height:100%;border:none;display:none}
+    #cam-img{width:100%;height:100%;object-fit:contain;background:#000}
+    #cam-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;
+                     align-items:center;justify-content:center;gap:10px;color:#444;font-size:.8rem}
+    .spinner{width:32px;height:32px;border:3px solid #222;border-top-color:#00ff88;
+             border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Crosshair overlay on camera */
+    #crosshair{position:absolute;inset:0;pointer-events:none}
+    #cross-h{position:absolute;top:50%;left:0;right:0;height:1px;background:#00ff8830;transform:translateY(-50%)}
+    #cross-v{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#00ff8830;transform:translateX(-50%)}
+    /* Face target dot */
+    #face-dot{position:absolute;width:14px;height:14px;border-radius:50%;
+              background:#ff4444;box-shadow:0 0 8px #ff4444;
+              transform:translate(-50%,-50%);display:none;transition:left .15s,top .15s}
+
+    /* Status row */
+    #status-row{display:flex;gap:12px;align-items:center;margin-bottom:14px;font-size:.8rem}
+    #status-dot{width:10px;height:10px;border-radius:50%;background:#444;flex-shrink:0}
+    #status-dot.connected{background:#00ff88;box-shadow:0 0 6px #00ff8880}
+    #status-dot.tracking{background:#ff4444;box-shadow:0 0 6px #ff444480;animation:pulse 1s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    #status-text{opacity:.6}
+
+    /* Motor direction indicator */
+    #motor-box{width:100%;max-width:640px;background:#111;border:1px solid #222;
+               border-radius:6px;padding:14px;margin-bottom:14px}
+    #motor-box h2{font-size:.7rem;letter-spacing:.2em;color:#00ff88;opacity:.5;margin-bottom:10px;text-transform:uppercase}
+    .motor-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:.8rem}
+    .motor-label{width:40px;opacity:.5}
+    .bar-track{flex:1;height:8px;background:#1a1a1a;border-radius:4px;overflow:hidden;position:relative}
+    .bar-fill{height:100%;width:0%;background:#00ff88;border-radius:4px;
+              position:absolute;left:50%;transform:translateX(-50%);transition:width .1s,background .1s}
+    .bar-fill.neg{background:#ff6600}
+    .speed-val{width:36px;text-align:right;opacity:.55;font-size:.75rem}
+
+    /* Confidence + info */
+    #info-box{width:100%;max-width:640px;background:#111;border:1px solid #222;
+              border-radius:6px;padding:14px;font-size:.8rem}
+    #info-box h2{font-size:.7rem;letter-spacing:.2em;color:#00ff88;opacity:.5;margin-bottom:10px;text-transform:uppercase}
+    .info-row{display:flex;justify-content:space-between;margin-bottom:6px;opacity:.7}
+    .info-val{color:#00ff88}
+
+    /* Confidence slider */
+    #conf-row{display:flex;align-items:center;gap:10px;margin-top:10px}
+    #conf-row label{opacity:.5;font-size:.75rem;white-space:nowrap}
+    input[type=range]{flex:1;accent-color:#00ff88}
+    #conf-val{width:32px;text-align:right;opacity:.55;font-size:.75rem}
+  </style>
+</head>
+<body>
+  <h1>🎯 Face Tracker — Browser Cam</h1>
+  <p id="cam-hint" style="font-size:.75rem;opacity:.45;margin-bottom:8px;">Open <strong id="cam-url">http://<h1>🎯 Face Tracker — Phone Cam</h1>lt;your-ip<h1>🎯 Face Tracker — Phone Cam</h1>gt;:8899/cam</strong> on your phone</p>
+
+  <div id="cam-wrap">
+    <div id="cam-placeholder">
+      <div class="spinner"></div>
+      <span>Connecting to phone…</span>
+    </div>
+    
+    <div id="crosshair">
+      <div id="cross-h"></div>
+      <div id="cross-v"></div>
+      <div id="face-dot"></div>
+    </div>
+  </div>
+
+  <div id="status-row">
+    <div id="status-dot"></div>
+    <span id="status-text">connecting…</span>
+  </div>
+
+  <div id="motor-box">
+    <h2>Motor Output</h2>
+    <div class="motor-row">
+      <span class="motor-label">PAN</span>
+      <div class="bar-track"><div class="bar-fill" id="pan-bar"></div></div>
+      <span class="speed-val" id="pan-val">0</span>
+    </div>
+    <div class="motor-row">
+      <span class="motor-label">TILT</span>
+      <div class="bar-track"><div class="bar-fill" id="tilt-bar"></div></div>
+      <span class="speed-val" id="tilt-val">0</span>
+    </div>
+  </div>
+
+  <div id="info-box">
+    <h2>Detection</h2>
+    <div class="info-row"><span>Confidence</span><span class="info-val" id="disp-conf">—</span></div>
+    <div class="info-row"><span>Face centre</span><span class="info-val" id="disp-pos">—</span></div>
+    <div class="info-row"><span>Last seen</span><span class="info-val" id="disp-time">—</span></div>
+    <div id="conf-row">
+      <label>Min confidence</label>
+      <input type="range" id="conf-slider" min="0" max="1" step="0.05" value="0.5">
+      <span id="conf-val">0.50</span>
+    </div>
+  </div>
+
+  <script src="libs/socket.io.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+<script>
+  // Fill in the real cam URL using the current host
+  const urlEl = document.getElementById('cam-url');
+  if (urlEl) urlEl.textContent = `http://${window.location.hostname}:8899/cam`;
+</script>

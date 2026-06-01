@@ -1,0 +1,10 @@
+name: Face Tracker Motor Controller (Browser Camera)
+description: "Tracks a face with two stepper motors. Phone camera streamed via browser — no app needed."
+icon: 🎯
+version: "3.0.0"
+ports:
+  - 8899
+environment:
+  HOST_IP: "${HOST_IP}"
+bricks:
+  - arduino:web_ui: {}

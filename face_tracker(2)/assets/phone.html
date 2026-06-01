@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+  <title>Face Tracker — Phone Camera</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      font-family: 'Courier New', monospace;
+      color: #e0e0e0;
+    }
+    #status {
+      position: fixed;
+      top: 12px; left: 0; right: 0;
+      text-align: center;
+      font-size: .75rem;
+      letter-spacing: .15em;
+      color: #00ff88;
+      opacity: .8;
+      z-index: 10;
+      pointer-events: none;
+    }
+    /* Video is hidden — just a source. Show a minimal indicator. */
+    video { display: none; }
+    canvas { display: none; }
+    #indicator {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      border: 3px solid #00ff8840;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+    }
+    #indicator.streaming {
+      border-color: #00ff88;
+      box-shadow: 0 0 18px #00ff8850;
+      animation: glow 2s ease-in-out infinite;
+    }
+    @keyframes glow {
+      0%,100% { box-shadow: 0 0 10px #00ff8840 }
+      50%      { box-shadow: 0 0 28px #00ff8880 }
+    }
+    #label {
+      margin-top: 16px;
+      font-size: .7rem;
+      letter-spacing: .2em;
+      opacity: .4;
+      text-transform: uppercase;
+    }
+    #fps-box {
+      margin-top: 8px;
+      font-size: .65rem;
+      opacity: .35;
+    }
+    #start-btn {
+      margin-top: 32px;
+      padding: 12px 28px;
+      background: transparent;
+      border: 1px solid #00ff88;
+      color: #00ff88;
+      font-family: inherit;
+      font-size: .8rem;
+      letter-spacing: .15em;
+      cursor: pointer;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    #start-btn:active { background: #00ff8820; }
+    #start-btn.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="status">connecting…</div>
+
+  <div id="indicator">📷</div>
+  <div id="label">phone camera</div>
+  <div id="fps-box">— fps</div>
+
+  <button id="start-btn">Start Camera</button>
+
+  <video id="vid" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+
+  <script src="libs/socket.io.min.js"></script>
+  <script>
+    // ── Config ───────────────────────────────────────────────────
+    const CAPTURE_W   = 640;
+    const CAPTURE_H   = 480;
+    const TARGET_FPS  = 15;      // frames/sec sent to server
+    const JPEG_QUALITY = 0.6;    // 0–1; lower = faster, less data
+
+    // ── Elements ─────────────────────────────────────────────────
+    const vid       = document.getElementById('vid');
+    const canvas    = document.getElementById('canvas');
+    const ctx       = canvas.getContext('2d');
+    const statusEl  = document.getElementById('status');
+    const indicator = document.getElementById('indicator');
+    const fpsBox    = document.getElementById('fps-box');
+    const startBtn  = document.getElementById('start-btn');
+
+    canvas.width  = CAPTURE_W;
+    canvas.height = CAPTURE_H;
+
+    // ── Socket ────────────────────────────────────────────────────
+    // Connect to the same host that served this page (the Python app server)
+    const socket = io(`http://${window.location.host}`);
+
+    socket.on('connect',    () => { statusEl.textContent = 'connected ✓'; });
+    socket.on('disconnect', () => { statusEl.textContent = 'disconnected — retrying…'; });
+
+    // ── Camera start (needs user gesture on iOS Safari) ───────────
+    startBtn.addEventListener('click', startCamera);
+
+    // Auto-start on non-iOS (Chrome Android doesn't need the gesture)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (!isIOS) startCamera();
+
+    async function startCamera() {
+      startBtn.classList.add('hidden');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',          // front camera
+            width:  { ideal: CAPTURE_W },
+            height: { ideal: CAPTURE_H },
+            frameRate: { ideal: TARGET_FPS }
+          },
+          audio: false
+        });
+        vid.srcObject = stream;
+        await vid.play();
+        indicator.classList.add('streaming');
+        statusEl.textContent = 'streaming 🟢';
+        beginCapture();
+      } catch (err) {
+        statusEl.textContent = 'Camera error: ' + err.message;
+        startBtn.classList.remove('hidden');
+        startBtn.textContent = 'Retry';
+      }
+    }
+
+    // ── Capture loop ──────────────────────────────────────────────
+    let lastSend = 0;
+    let frameCount = 0, fpsTimer = 0;
+
+    function beginCapture() {
+      requestAnimationFrame(captureLoop);
+    }
+
+    function captureLoop(ts) {
+      requestAnimationFrame(captureLoop);
+
+      const interval = 1000 / TARGET_FPS;
+      if (ts - lastSend < interval) return;
+      lastSend = ts;
+
+      // Draw current video frame onto canvas
+      ctx.drawImage(vid, 0, 0, CAPTURE_W, CAPTURE_H);
+
+      // Encode as JPEG and send over socket
+      canvas.toBlob(blob => {
+        if (!blob || !socket.connected) return;
+        blob.arrayBuffer().then(buf => {
+          socket.emit('phone_frame', buf);
+        });
+      }, 'image/jpeg', JPEG_QUALITY);
+
+      // FPS display
+      frameCount++;
+      if (ts - fpsTimer >= 1000) {
+        fpsBox.textContent = frameCount + ' fps';
+        frameCount = 0;
+        fpsTimer   = ts;
+      }
+    }
+  </script>
+</body>
+</html>
